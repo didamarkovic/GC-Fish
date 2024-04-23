@@ -55,7 +55,7 @@ def extract_pars(parlist, filename=False):
 			printstring += " in "+filename+"!"
 		else:
 			printstring += "!"
-		print printstring
+		print(printstring)
 
 	return newpars
 
@@ -117,7 +117,7 @@ class GitEnv(object):
 		cmd = sp.Popen(self.get_git_cmd(['log', '-n','1']), stdout=sp.PIPE)
 		cmd_out, cmd_err = cmd.communicate()
 		newlist=[]
-		for entry in cmd_out.strip().split('\n'):		
+		for entry in cmd_out.decode("utf-8").strip().split('\n'):		
 			if entry=='': continue
 			entry = entry.split(' ')
 			# This is a hack, should use a dict so can be sure what we are reading in:
@@ -132,9 +132,9 @@ class GitEnv(object):
 		cmd_out, cmd_err = cmd.communicate()
 		if bool(cmd_out):
 			try:
-				return cmd_out.strip().split('https://')[1].split(' ')[0]
+				return cmd_out.decode("utf-8").strip().split('https://')[1].split(' ')[0]
 			except IndexError:
-				ssh_url = cmd_out.strip().split('git@')[1].split(' ')[0]
+				ssh_url = cmd_out.decode("utf-8").strip().split('git@')[1].split(' ')[0]
 				return ssh_url.replace(':','/')
 		else:
 			return 'no remote repo'
@@ -142,7 +142,7 @@ class GitEnv(object):
 	def get_branch(self):
 		cmd = sp.Popen(self.get_git_cmd(['branch']), stdout=sp.PIPE)
 		cmd_out, cmd_err = cmd.communicate()
-		branches = cmd_out.strip().splitlines()
+		branches = cmd_out.decode("utf-8").strip().splitlines()
 		for branch in branches:
 			if '*' in branch:
 				return branch.replace('*','').strip()
@@ -150,4 +150,4 @@ class GitEnv(object):
 	def get_repo(self):
 		cmd = sp.Popen(self.get_git_cmd(['rev-parse','--show-toplevel']), stdout=sp.PIPE)
 		cmd_out, cmd_err = cmd.communicate()
-		return cmd_out.strip().split('/')[-1]
+		return cmd_out.decode("utf-8").strip().split('/')[-1]
