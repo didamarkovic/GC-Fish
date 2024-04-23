@@ -30,13 +30,16 @@ def readfish(filename):
 	with open(filename) as f:
 		filestr = f.read().strip()
 	if '#' in filestr:
+		# Get parameter names
 		header = filestr.split('\n')[0]
-		filestr = filestr.replace(header,'')
 		parlist = header.replace('#','').strip().strip('"').split()
+		# Get fiducial values
+		header = filestr.split('\n')[1]
+		fidlist = [float(x) for x in header.replace('#','').strip().strip('"').split()]
 	else:
 		raise Exception("No header in " + filename + "!")
 	data = np.genfromtxt(filename)
-	return np.matrix(data), parlist
+	return np.matrix(data), parlist, fidlist
 
 # Function that returns a list of parameters, leaving only one list entry for every z-dependent parameter
 # assumes the parameter name and redshift are separated by a '_' (an underscore)
@@ -69,6 +72,27 @@ def extract_zs(parlist):
 			par = float(pl[1])
 			if par not in zs: zs.append(par)	
 	return zs
+
+# Function that prints out the parameters nicely for information (not orderd as in file)
+def print_pars(parlist):
+	pars = extract_pars(parlist)
+	str = ''
+	for par in pars:
+		for subpar in parlist:
+			if par not in subpar: continue
+			str += subpar + " "
+		str+="\r\n"
+
+	return str
+
+# A function that prints the parameter fiducial and error
+def print_err(fishmat,pars,fids,par):
+	covmat = np.linalg.inv(fishmat)
+	ind = pars.index(par)
+	margerr = np.sqrt(covmat[ind,ind])
+	fid = fids[ind]
+	fracerr = margerr/fid
+	return '%s = %g +/- %g (%0.2g%%)'%(par,fid,margerr,100.0*fracerr)
 
 # A class that contains the Git environment at the time of it's initialisation.
 # Currently it uses the subprocess module to speak to Git through the system.
