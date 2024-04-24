@@ -10,6 +10,9 @@ import time, datetime
 from glob import glob
 import numpy as np
 import subprocess as sp
+import scipy
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 # A function to round to significant figures, not decimal places
 def roundsf(x, n):
@@ -93,6 +96,98 @@ def print_err(fishmat,pars,fids,par):
 	fid = fids[ind]
 	fracerr = margerr/fid
 	return '%s = %g +/- %g (%0.2g%%)'%(par,fid,margerr,100.0*fracerr)
+
+# Draw ellipses (from EFT Fish)
+def get_ellipse(centre,CM_2D):
+	# We will need coefficients for the ellipse depending on the number of sigma level we want
+	CL_alpha = {
+		1: 1.52, 
+		2: 2.48,
+		3: 3.44
+	}
+
+	# Get the errors
+	FM_2D = scipy.linalg.pinv(CM_2D)
+	em0 = np.sqrt(CM_2D[0,0])
+	eu0 = np.sqrt(1./FM_2D[0,0])
+	em1 = np.sqrt(CM_2D[1,1])
+	eu1 = np.sqrt(1./FM_2D[1,1])
+
+	# Now calculate the ellipse parameters
+	a = np.sqrt(0.5*(CM_2D[0,0]+CM_2D[1,1]) + np.sqrt(0.25*(CM_2D[0,0]-CM_2D[1,1])**2 + CM_2D[0,1]**2))
+	b = np.sqrt(0.5*(CM_2D[0,0]+CM_2D[1,1]) - np.sqrt(0.25*(CM_2D[0,0]-CM_2D[1,1])**2 + CM_2D[0,1]**2))
+	theta = 180./np.pi * 0.5*np.arctan(2.*CM_2D[0,1] / (CM_2D[0,0]-CM_2D[1,1])) # should be in degrees
+
+	if CM_2D[0,0]<CM_2D[1,1]:
+		width=2.*b
+		height=2.*a
+	else:
+		width=2.*a
+		height=2.*b
+
+	# Create all the ellipses
+	ellipse1 = Ellipse(xy=(centre[0],centre[1]), width=width*CL_alpha[1], height=height*CL_alpha[1], angle=theta, 
+					linewidth=0, fill=True, zorder=2, alpha=0.7, color='g')
+	ellipse2 = Ellipse(xy=(centre[0],centre[1]), width=width*CL_alpha[2], height=height*CL_alpha[2], angle=theta, 
+					linewidth=0, fill=True, zorder=2, alpha=0.2, color='g')
+
+	return ellipse1, ellipse2, CL_alpha[1]*em0, CL_alpha[1]*em1, CL_alpha[1]*eu0, CL_alpha[1]*eu1
+
+# Draw corner plot (from EFTFish)
+# pars and fids should be lists and need to match one dimension of FishMat
+def corner_plot(FishMat,pars,fids,marginalize=[],omit=[],ind=('h','ns')):	
+	
+	CovMat = np.linalg.inv(FishMat)
+	
+	fig, ax = plt.subplots(figsize=(7,7))
+
+	p0i = pars.index(ind[0])
+	c0 = fids[p0i]
+	par0 = pars[p0i]
+	for p1i, par1 in enumerate(pars):
+
+		p1i = pars.index(ind[1])
+		par1 = ind[1]
+		c1 = fids[p1i]
+
+		print(par0,par1)
+		print(p0i,p1i)
+		print(c0,c1)
+
+
+		# Marginalise out everything else and make a new 2x2 Covariance Matrix
+		if marginalize:
+			covmat_2D = np.zeros((2,2))
+			covmat_2D[0,0] = CovMat[p0i,p0i]
+			covmat_2D[1,1] = CovMat[p1i,p1i]
+			covmat_2D[0,1] = CovMat[p0i,p1i]
+			covmat_2D[1,0] = covmat_2D[0,1]
+		else:
+			fishmat_2D = np.zeros((2,2))
+			fishmat_2D[0,0] = FishMat[p0i,p0i]
+			fishmat_2D[1,1] = FishMat[p1i,p1i]
+			fishmat_2D[0,1] = FishMat[p0i,p1i]
+			fishmat_2D[1,0] = fishmat_2D[0,1]
+			covmat_2D = scipy.linalg.pinv(fishmat_2D)
+			del fishmat_2D
+
+		# Make a test plot
+		ell1, ell2, errm0, errm1, erru0, erru1 = get_ellipse([c0,c1],covmat_2D)
+		ax.axhline(c1,ls='--',c='k',lw=1); ax.axvline(c0,ls='--',c='k',lw=1) # Centre lines
+		ax.axvline(c0-errm0,ls=':',c='g',lw=1); ax.axvline(c0+errm0,ls=':',c='g',lw=1) # Marginalised error lines par0
+		ax.axvline(c0-erru0,ls=':',c='c',lw=1); ax.axvline(c0+erru0,ls=':',c='c',lw=1) # Marginalised error lines par0
+		ax.axhline(c1-errm1,ls=':',c='g',lw=1); ax.axhline(c1+errm1,ls=':',c='g',lw=1) # Marginalised error lines par1
+		ax.axhline(c1-erru1,ls=':',c='c',lw=1); ax.axhline(c1+erru1,ls=':',c='c',lw=1) # Marginalised error lines par1
+		ax.add_artist(ell1)
+		ax.add_artist(ell2)
+
+		break
+	
+	ax.set_xlim(c0-errm0*2.1, c0+errm0*2.1)
+	ax.set_ylim(c1-errm1*2.1, c1+errm1*2.1)
+
+	plt.xlabel(par0)
+	plt.ylabel(par1)
 
 # A class that contains the Git environment at the time of it's initialisation.
 # Currently it uses the subprocess module to speak to Git through the system.
